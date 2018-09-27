@@ -14,9 +14,9 @@ double generate_time(char temp[20]){
     return x;
 }
 
-void affichage(){
-    printf("%d\n", v1.num);
-    printf("%lf\n", v1.temps);
+void affichage(voiture v){
+    printf("%d\n", v.num);
+    printf("%lf\n", v.temps / 10000);
     printf("%s\n", "fin");
 }
 
