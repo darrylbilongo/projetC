@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include<sys/ipc.h>
+#include<sys/shm.h>
 
 typedef struct{
     //int num;
@@ -29,7 +30,7 @@ int main(int argc, char *argv[]){
     srand(time(NULL));
 
     //************************création du segment de memoire partagee
-    shmid = shmget(key, 20*sizeof(voiture), IPC_CREAT | 0666);
+    shmid = shmget(key, sizeof(voiture), IPC_CREAT | 0666);
     if(shmid == -1){
       perror("Création de segment impossible: Erreur shmget");
       exit(-1);
@@ -44,7 +45,7 @@ int main(int argc, char *argv[]){
     }
 
     else if(pid == 0){
-      int shmid2 = shmget(key, 20*sizeof(voiture), IPC_CREAT | 0666);
+      int shmid2 = shmget(key, sizeof(voiture), IPC_CREAT | 0666);
 
       if(shmid2 == -1){
         perror("Création de segment impossible: Erreur shmget");
@@ -73,11 +74,13 @@ int main(int argc, char *argv[]){
     }
     else{
       voituresCourse = (voiture *)shmat(shmid, 0, 0);
-      sleep(1);
+
       if(voituresCourse == (voiture*)-1){
         perror("Attachement impossible: Erreur shmat");
         exit(-1);
       }
+
+      sleep(1);
 
       int div = voituresCourse->tt / 60;
       int res = voituresCourse->tt % 60;
@@ -89,13 +92,11 @@ int main(int argc, char *argv[]){
         perror("détachement impossible: Erreur shmdt");
         exit(-1);
       }
-
+      exit(1);
     }
 
     //le père attend la mort du fils
     wait(0);
 
-    //réalisation du ménage et destruction du segment partagee
-    shmctl(voituresCourse);
     return 1;
 }
