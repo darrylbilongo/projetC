@@ -20,7 +20,7 @@ typedef struct{
 
 int main(int argc, char *argv[]){
     system("clear");
-    printf("COURSE P1 : première scéance d'essais !!!\n");
+    printf("COURSE P1 : première scéance d'essais !!!\n\n\n");
     printf("\t|\tS1\t|\tS2\t|\tS3\t|\tTT\t|\tPIT\t|\tOUT\t\n\n");
 
     //***************************************chaque passage de la voiture
@@ -32,34 +32,32 @@ int main(int argc, char *argv[]){
     //************************création du segment de memoire partagee
     shmid = shmget(key, sizeof(voiture), IPC_CREAT | 0666);
     if(shmid == -1){
-      perror("Création de segment impossible: Erreur shmget du père.");
+      perror("Création de segment impossible: Erreur shmget du père.\n");
       exit(-1);
     }
 
-    srand(time(NULL));
+    //srand(time(NULL));
     //*****************mutation
     for(int i = 0; i <= 19; i++){
-      int a = rand()%(55 - 35) + 35;
-      int b = rand()%(55 - 35) + 35;
-      int c = rand()%(55 - 35) + 35;
       f = fork();
 
       if( f == -1){
-        perror("Impossible de créer un fils");
+        perror("Impossible de créer un fils: Erreur fork.\n");
         exit(-1);
       }
 
       if(f == 0){
+        srand(time(0) + getpid());
         int shmid2 = shmget(key, sizeof(voiture), IPC_CREAT | 0666);
 
         if(shmid2 == -1){
-          perror("Création de segment impossible: Erreur shmget du fils\n");
+          perror("Création de segment impossible: Erreur shmget du fils.\n");
           exit(-1);
         }
 
         voituresCourse = (voiture *)shmat(shmid2, 0, 0);
         if(voituresCourse == (voiture*)-1){
-          perror("Attachement impossible: Erreur shmat du fils\n");
+          perror("Attachement impossible: Erreur shmat du fils.\n");
           exit(-1);
         }
 
@@ -72,7 +70,7 @@ int main(int argc, char *argv[]){
         //il est temps pour le fils de mourrir
         //mais avant il doit se détacher de la memoire partagee
         if(shmdt(voituresCourse) == -1){
-          perror("détachement impossible: Erreur shmdt du fils\n");
+          perror("détachement impossible: Erreur shmdt du fils.\n");
           exit(-1);
         }
         sleep(1);
@@ -85,7 +83,7 @@ int main(int argc, char *argv[]){
       voituresCourse = (voiture *)shmat(shmid, 0, 0);
 
       if(voituresCourse == (voiture*)-1){
-        perror("Attachement impossible: Erreur shmat du pére\n");
+        perror("Attachement impossible: Erreur shmat du pére.\n");
         exit(-1);
       }
 
@@ -101,12 +99,12 @@ int main(int argc, char *argv[]){
     printf("\n\nPremiere course terminee\n\n\n");
 
       if(shmdt(voituresCourse) == -1){
-        perror("détachement impossible: Erreur shmdt du père.");
+        perror("détachement impossible: Erreur shmdt du père.\n");
         exit(-1);
       }
 
       if(shmctl(shmid, IPC_RMID,  (struct shmid_ds *) NULL) == -1){
-        perror("destruction de la memoire partagee n'est pas faite: Erreur shmctl.");
+        perror("destruction de la memoire partagee n'est pas faite: Erreur shmctl.\n");
         exit(-1);
       }
       exit(1);
