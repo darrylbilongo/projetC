@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
+#include <string.h>
 #define key 12345
 
 typedef struct{
@@ -21,7 +22,7 @@ typedef struct{
 
 voiture *voituresCourse;
 
-void course(/*key_t key*/) {
+void course() {
   for(int i = 0; i <= 19; i++){
     int f = fork();
 
@@ -65,15 +66,28 @@ void course(/*key_t key*/) {
 }
 
 void affichage(){
+  sleep(1);
+  voiture voitureCopie[20];
+  memcpy(&voitureCopie, voituresCourse, 20*sizeof(voiture));
+
+
+  for(int i = 0; i <= 19; i++){
+    for(int j = 0; j <=18; j++){
+      if(voitureCopie[j].tt > voitureCopie[j+1].tt){
+        voiture voit = voitureCopie[j];
+        voitureCopie[j]= voitureCopie[j+1];
+        voitureCopie[j+1] = voit;
+      }
+    }
+  }
+
   for(int i = 0; i <= 19; i++){
     sleep(1);
-
-    int div = voituresCourse[i].tt / 60;
-    int res = voituresCourse[i].tt % 60;
+    int div = voitureCopie[i].tt / 60;
+    int res = voitureCopie[i].tt % 60;
 
     // affichage
-    printf("%d\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:%d m\t|\t(P)\t|\tIN\t\n", voituresCourse[i].pid, voituresCourse[i].temps1, voituresCourse[i].temps2, voituresCourse[i].temps3, div, res);
-
+    printf("%d\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:%d m\t|\t(P)\t|\tIN\t\n", voitureCopie[i].pid, voitureCopie[i].temps1, voitureCopie[i].temps2, voitureCopie[i].temps3, div, res);
   }
   printf("\n\nPremiere course terminee\n\n\n");
 
@@ -94,7 +108,7 @@ int main(int argc, char *argv[]){
       exit(-1);
     }
 
-    course(/*key*/);
+    course();
 
     voituresCourse = (voiture *)shmat(shmid, 0, 0);
     if(voituresCourse == (voiture*)-1){
