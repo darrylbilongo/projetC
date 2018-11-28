@@ -10,7 +10,7 @@
 #define key 12345
 
 typedef struct{
-    //int num;
+    int num;
     int temps1;
     int temps2;
     int temps3;
@@ -21,8 +21,11 @@ typedef struct{
 } voiture;
 
 voiture *voituresCourse;
+voiture copieAffichage[20];
 
-void course() {
+
+void courseTour() {
+  int numVoiture[] = {44,77,5,7,3,33,11,31,18,35,27,55,10,28,8,20,2,14,9,16};
   for(int i = 0; i <= 19; i++){
     int f = fork();
 
@@ -45,13 +48,28 @@ void course() {
         perror("Attachement impossible: Erreur shmat du fils.\n");
         exit(-1);
       }
-
-      voituresCourse[i].temps1 = rand()%(55 - 35) + 35;
-      voituresCourse[i].temps2 = rand()%(55 - 35) + 35;
-      voituresCourse[i].temps3 = rand()%(55 - 35) + 35;
-      voituresCourse[i].tt = voituresCourse[i].temps1 + voituresCourse[i].temps2 + voituresCourse[i].temps3;
-      voituresCourse[i].pid = getpid();
-
+      int a = rand()%(55 - 35) + 35;
+      int b = rand()%(55 - 35) + 35;
+      int c = rand()%(55 - 35) + 35;
+      int d = a + b + c;
+      if(voituresCourse[i].tt == 0){
+        voituresCourse[i].num = numVoiture[i];
+        voituresCourse[i].temps1 = a;
+        voituresCourse[i].temps2 = b;
+        voituresCourse[i].temps3 = c;
+        voituresCourse[i].tt = d;
+        voituresCourse[i].pid = getpid();
+      }
+      else{
+        if(d < voituresCourse[i].tt){
+          voituresCourse[i].num = numVoiture[i];
+          voituresCourse[i].temps1 = a;
+          voituresCourse[i].temps2 = b;
+          voituresCourse[i].temps3 = c;
+          voituresCourse[i].tt = d;
+          voituresCourse[i].pid = getpid();
+        }
+      }
       //il est temps pour le fils de mourrir
       //mais avant il doit se détacher de la memoire partagee
       if(shmdt(voituresCourse) == -1){
@@ -65,50 +83,66 @@ void course() {
   }
 }
 
+
+void initCourse(){
+  int numVoiture[] = {44,77,5,7,3,33,11,31,18,35,27,55,10,28,8,20,2,14,9,16};
+  for(int i = 0; i <= 19; i++){
+    voituresCourse[i].num = numVoiture[i];
+    voituresCourse[i].temps1 = 0;
+    voituresCourse[i].temps2 = 0;
+    voituresCourse[i].temps3 = 0;
+    voituresCourse[i].tt = 0;
+    voituresCourse[i].pid = 0;
+  }
+}
+
+void trierTab(voiture voitureCopie[20]){
+    for(int i = 0; i <= 19; i++){
+      for(int j = 0; j <=18; j++){
+        if(voitureCopie[j].tt > voitureCopie[j+1].tt){
+          voiture voit = voitureCopie[j];
+          voitureCopie[j]= voitureCopie[j+1];
+          voitureCopie[j+1] = voit;
+        }
+      }
+    }
+}
+
 void affichage(){
+
+  printf("COURSE P1 : première scéance d'essais !!!\n\n\n");
+  printf("\t|\tS1\t|\tS2\t|\tS3\t|\tTT\t|\tPIT\t|\tOUT\t\n\n");
   sleep(1);
   voiture voitureCopie[20];
   memcpy(&voitureCopie, voituresCourse, 20*sizeof(voiture));
-
-
-  for(int i = 0; i <= 19; i++){
-    for(int j = 0; j <=18; j++){
-      if(voitureCopie[j].tt > voitureCopie[j+1].tt){
-        voiture voit = voitureCopie[j];
-        voitureCopie[j]= voitureCopie[j+1];
-        voitureCopie[j+1] = voit;
-      }
-    }
-  }
-
+  trierTab(voitureCopie);
   for(int i = 0; i <= 19; i++){
     sleep(1);
     int div = voitureCopie[i].tt / 60;
     int res = voitureCopie[i].tt % 60;
 
     // affichage
-    printf("%d\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:%d m\t|\t(P)\t|\tIN\t\n", voitureCopie[i].pid, voitureCopie[i].temps1, voitureCopie[i].temps2, voitureCopie[i].temps3, div, res);
+    printf("%d\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:0 s\t|\t%d:%d m\t|\t(P)\t|\tIN\t\n", voitureCopie[i].num, voitureCopie[i].temps1, voitureCopie[i].temps2, voitureCopie[i].temps3, div, res);
   }
   printf("\n\nPremiere course terminee\n\n\n");
 
 }
 
+void courseSession(int trs){
+  for(int i = 0; i <= trs; i++){
+    courseTour();
+    affichage();
+  }
+}
 
 int main(int argc, char *argv[]){
     system("clear");
-    printf("COURSE P1 : première scéance d'essais !!!\n\n\n");
-    printf("\t|\tS1\t|\tS2\t|\tS3\t|\tTT\t|\tPIT\t|\tOUT\t\n\n");
-
-    //key_t key = 12345;
-    int f;
-
+    void initCourse();
     int shmid = shmget(key, sizeof(voiture), IPC_CREAT | 0666);
     if(shmid == -1){
       perror("Création de segment impossible: Erreur shmget du père.\n");
       exit(-1);
     }
-
-    course();
 
     voituresCourse = (voiture *)shmat(shmid, 0, 0);
     if(voituresCourse == (voiture*)-1){
@@ -116,7 +150,6 @@ int main(int argc, char *argv[]){
       exit(-1);
     }
 
-    affichage();
     if(shmdt(voituresCourse) == -1){
       perror("détachement impossible: Erreur shmdt du père.\n");
       exit(-1);
@@ -127,8 +160,6 @@ int main(int argc, char *argv[]){
       exit(-1);
     }
     exit(1);
-
-
     //le père attend la mort du fils
     wait(0);
 
