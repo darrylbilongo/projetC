@@ -1,4 +1,4 @@
-#include <stdio.h>
+  #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]){
       perror("Attachement impossible: Erreur shmat du pére.\n");
       exit(-1);
     }
-
+    courseSession(3);
     if(shmdt(voituresCourse) == -1){
       perror("détachement impossible: Erreur shmdt du père.\n");
       exit(-1);
