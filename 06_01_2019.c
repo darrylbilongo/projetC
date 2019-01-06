@@ -1,34 +1,39 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/sem.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <string.h>
-#define shmkey 12345
+
 #define keysem 54321
+#define shmkey 12345
 
 typedef struct{
     int num;
-    int temps1;
-    int temps2;
-    int temps3;
+    int mn1;
+    int mn2;
+    int mn3;
+    int ss1;
+    int ss2;
+    int ss3;
+    int ss;
     int tt;//temps total
-    int pit;//pit stop
-    int out;//arrêt
+    char *pit;//pit stop
+    char *out;//arrêt
     pid_t pid;
+    int echec;
 } voiture;
 
 voiture *voituresCourse;
-voiture copieAffichage[20];
 
-
-void courseTour(int km) {
+void courseTour(int nbVoitures) {
     int numVoiture[] = {44,77,5,7,3,33,11,31,18,35,27,55,10,28,8,20,2,14,9,16};
     int i;
-    for(i = 0; i <= 19; i++){
+    for(i = 0; i < 20; i++){
         int f = fork();
         
         if( f == -1){
@@ -52,60 +57,96 @@ void courseTour(int km) {
             }
             
             /* Sémaphores */
-            
-            int nsems = 1;
+            int nsems = 2;
             int semflg = 0;
             int semid;
             
+            struct sembuf *ops;
+            
             semid = semget(keysem, nsems, semflg);
             
-            // opérations à réaliser atomiquement
-            struct sembuf *ops;
-
             /* Operation WAIT ou P */
-            ops[1].sem_num= 0;
-            ops[1].sem_op = -1;
-            ops[1].sem_flg = SEM_UNDO;
-            
-            if(semop(semid, ops, 0) == -1){
-                perror("erreur de semop");
-                exit(EXIT_FAILURE);
-            };
-            
-            int j;
-            for(j = 0; j < km; j++){
-                int a = rand()%(3300 - 2100) + 2100;
-                int b = rand()%(3300 - 2100) + 2100;
-                int c = rand()%(3300 - 2100) + 2100;
-                int d = a + b + c;
-                if(voituresCourse[i].tt == 0){
-                    voituresCourse[i].num = numVoiture[i];
-                    voituresCourse[i].temps1 = a;
-                    voituresCourse[i].temps2 = b;
-                    voituresCourse[i].temps3 = c;
-                    voituresCourse[i].tt = d;
-                    voituresCourse[i].pid = getpid();
-                }
-                else{
-                    if(d < voituresCourse[i].tt){
-                        voituresCourse[i].num = numVoiture[i];
-                        voituresCourse[i].temps1 = a;
-                        voituresCourse[i].temps2 = b;
-                        voituresCourse[i].temps3 = c;
-                        voituresCourse[i].tt = d;
-                        voituresCourse[i].pid = getpid();
-                    }
-                }
-                sleep(1);
-            }
-            
-            /* Opération Signal ou V */
-            ops[0].sem_num = 0;
-            ops[0].sem_op = +1;
-            ops[0].sem_flg = SEM_UNDO;
+            ops->sem_num = 0;
+            ops->sem_op = -1;
+            ops->sem_flg = SEM_UNDO;
             
             semop(semid, ops, 0);
             
+            
+            int j;
+            
+            if(voituresCourse[i].echec == 0){
+                voituresCourse = (voiture *)shmat(shmid2, 0, 0);
+                if(voituresCourse == (voiture*)-1){
+                    perror("Attachement impossible: Erreur shmat du fils.\n");
+                    exit(-1);
+                }
+                int j;
+                voituresCourse[i].num = numVoiture[i];
+                int a = rand()%(59 - 35) + 35;
+                int b = rand()%(59 - 35) + 35;
+                int c = rand()%(59 - 35) + 35;
+                
+                int somme = 0;
+                somme += a;//pour avoir des resultats atomiques
+                somme += b;
+                somme += c;
+                
+                int d = rand()%(59 - 35) + 35;
+                int e = rand()%(59 - 35) + 35;
+                int f = rand()%(59 - 35) + 35;
+                
+                int g = d + e + f;
+                int h = g%60;
+                int l = g/60;
+                somme += l;
+                if(voituresCourse[i].tt == 0){
+                    voituresCourse[i].mn1 = a;
+                    voituresCourse[i].mn2 = b;
+                    voituresCourse[i].mn3 = c;
+                    
+                    voituresCourse[i].ss1 = d;
+                    voituresCourse[i].ss2 = e;
+                    voituresCourse[i].ss3 = f;
+                    
+                    voituresCourse[i].ss = h;
+                    voituresCourse[i].tt = somme;
+                    voituresCourse[i].pid = getpid();
+                }
+                else{
+                    if(somme < voituresCourse[i].tt && voituresCourse[i].out != "O" && voituresCourse[i].pit != "P"){
+                        voituresCourse[i].mn1 = a;
+                        voituresCourse[i].mn2 = b;
+                        voituresCourse[i].mn3 = c;
+                        
+                        voituresCourse[i].ss1 = d;
+                        voituresCourse[i].ss2 = e;
+                        voituresCourse[i].ss3 = f;
+                        
+                        voituresCourse[i].ss = h;
+                        voituresCourse[i].tt = somme;
+                        voituresCourse[i].out = "   ";
+                        voituresCourse[i].pit = "   ";
+                        
+                        voituresCourse[i].pid = getpid();
+                        
+                        if(voituresCourse[i].ss2 == 40){
+                            voituresCourse[i].out = "O";
+                        }
+                        if(voituresCourse[i].ss3 == 50){
+                            voituresCourse[i].pit = "P";
+                        }
+                    }
+                    sleep(1);
+                }
+            } // fin écriture
+            
+            /* Opération Signal ou V */
+            ops->sem_num = 0;
+            ops->sem_op = +1;
+            ops->sem_flg = SEM_UNDO;
+            
+            semop(semid, ops, 0);
             
             //il est temps pour le fils de mourrir
             //mais avant il doit se détacher de la memoire partagee
@@ -121,217 +162,301 @@ void courseTour(int km) {
 
 
 void initCourse(){
-    int numVoiture[] = {44,77,5,7,3,33,11,31,18,35,27,55,10,28,8,20,2,14,9,16};
     int i;
-    for(i = 0; i <= 19; i++){
+    int numVoiture[] = {44,77,5,7,3,33,11,31,18,35,27,55,10,28,8,20,2,14,9,16};
+    for(i = 0; i < 20; i++){
         voituresCourse[i].num = numVoiture[i];
-        voituresCourse[i].temps1 = 0;
-        voituresCourse[i].temps2 = 0;
-        voituresCourse[i].temps3 = 0;
-        voituresCourse[i].tt = 0;
+        voituresCourse[i].mn1 = 60;
+        voituresCourse[i].ss1 = 60;
+        voituresCourse[i].mn2 = 60;
+        voituresCourse[i].ss2 = 60;
+        voituresCourse[i].mn3 = 60;
+        voituresCourse[i].ss3 = 60;
+        voituresCourse[i].tt = 500;
+        voituresCourse[i].ss = 0;
         voituresCourse[i].pid = 0;
+        voituresCourse[i].out = "   ";
+        voituresCourse[i].pit = "   ";
     }
 }
 
-void trierTab(voiture voitureCopie[20]){
+void initVoituresCourse(){
+    int i;
+    for(i = 0; i < 20; i++){
+        if(voituresCourse[i].echec == 0){
+            voituresCourse[i].mn1 = 0;
+            voituresCourse[i].ss1 = 0;
+            voituresCourse[i].mn2 = 0;
+            voituresCourse[i].ss2 = 0;
+            voituresCourse[i].mn3 = 0;
+            voituresCourse[i].ss3 = 0;
+            voituresCourse[i].tt = 0;
+            voituresCourse[i].ss = 0;
+            voituresCourse[i].pid = 0;
+            voituresCourse[i].out = "   ";
+            voituresCourse[i].pit = "   ";
+        }
+    }
+}
+
+void trierTab(voiture *voitureCopie){
     int i;
     for(i = 0; i <= 19; i++){
         int j;
-        for(j = 0; j <=18; j++){
+        for(j = 0; j <= 18; j++){
             if(voitureCopie[j].tt > voitureCopie[j+1].tt){
                 voiture voit = voitureCopie[j];
                 voitureCopie[j]= voitureCopie[j+1];
                 voitureCopie[j+1] = voit;
             }
+            else if (voitureCopie[j].tt == voitureCopie[j+1].tt){
+                if (voitureCopie[j].ss > voitureCopie[j+1].ss){
+                    voiture voit = voitureCopie[j];
+                    voitureCopie[j]= voitureCopie[j+1];
+                    voitureCopie[j+1] = voit;
+                }
+                
+            }
         }
     }
 }
 
-int trouverVoitTemps1(voiture voitureCopie[20], int temps){
+void trieFinale(voiture *voitureCopie){
     int i;
+    trierTab(voitureCopie);
     for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].temps1 == temps){
+        int j;
+        for(j = 0; j <= 18; j++){
+            if(voitureCopie[j].out != "O" ){
+                if(voitureCopie[j].tt > voitureCopie[j+1].tt){
+                    voiture voit = voitureCopie[j];
+                    voitureCopie[j]= voitureCopie[j+1];
+                    voitureCopie[j+1] = voit;
+                }
+                else if (voitureCopie[j].tt == voitureCopie[j+1].tt){
+                    if (voitureCopie[j].ss > voitureCopie[j+1].ss){
+                        voiture voit = voitureCopie[j];
+                        voitureCopie[j]= voitureCopie[j+1];
+                        voitureCopie[j+1] = voit;
+                    }
+                }
+            }
+        }
+    }
+}
+
+int trouverVoitMn1(voiture *voitureCopie, int mn, int ss){
+    int i;
+    for(i = 0; i < 20; i++){
+        if(voitureCopie[i].mn1 == mn && voitureCopie[i].ss1 == ss ){
             return voitureCopie[i].num;
         }
     }
-    return 0;
+    //return 0;
 }
 
-int trouverVoitTemps2(voiture voitureCopie[20], int temps){
+int trouverVoitMn2(voiture *voitureCopie, int mn, int ss){
     int i;
-    for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].temps2 == temps){
+    for(i = 0; i < 20; i++){
+        if(voitureCopie[i].mn2 == mn && voitureCopie[i].ss2 == ss ){
             return voitureCopie[i].num;
         }
     }
-    return 0;
+    //return 0;
 }
 
-int trouverVoitTemps3(voiture voitureCopie[20], int temps){
+int trouverVoitMn3(voiture *voitureCopie, int mn, int ss){
     int i;
-    for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].temps1 == temps){
+    for(i = 0; i < 20; i++){
+        if(voitureCopie[i].mn3 == mn && voitureCopie[i].ss3 == ss ){
             return voitureCopie[i].num;
         }
     }
-    return 0;
+    //return 0;
 }
 
-int trouverVoitTt(voiture voitureCopie[20], int temps){
+int minS1(voiture *voitureCopie){
     int i;
-    for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].tt == temps){
-            return voitureCopie[i].num;
+    int mnMin = voitureCopie[0].mn1;
+    int ssMin = voitureCopie[0].ss1;
+    for(i = 1; i < 20; i++){
+        if(voitureCopie[i].mn1 < mnMin){
+            mnMin = voitureCopie[i].mn1;
+            ssMin = voitureCopie[i].ss1;
+        }
+        else if(voitureCopie[i].mn1 == mnMin){
+            if(ssMin > voitureCopie[i].ss1){
+                ssMin = voitureCopie[i].ss1;
+            }
         }
     }
-    return 0;
+    return trouverVoitMn1(voitureCopie, mnMin, ssMin);
 }
 
-int maxS1(voiture voitureCopie[20]){
+int minS2(voiture *voitureCopie){
     int i;
-    int max = 0;
-    for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].temps1 > max){
-            max = voitureCopie[i].temps1;
+    int mnMin = voitureCopie[0].mn2;
+    int ssMin = voitureCopie[0].ss2;
+    for(i = 1; i < 20; i++){
+        if(voitureCopie[i].mn2 < mnMin){
+            mnMin = voitureCopie[i].mn2;
+        }
+        else if(voitureCopie[i].mn2 == mnMin){
+            if(ssMin > voitureCopie[i].ss2){
+                ssMin = voitureCopie[i].ss2;
+            }
         }
     }
-    return trouverVoitTemps1(voitureCopie, max);
+    return trouverVoitMn2(voitureCopie, mnMin, ssMin);
 }
 
-int maxS2(voiture voitureCopie[20]){
+int minS3(voiture *voitureCopie){
     int i;
-    int max = 0;
-    for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].temps2 > max){
-            max = voitureCopie[i].temps2;
+    int mnMin = voitureCopie[0].mn3;
+    int ssMin = voitureCopie[0].ss3;
+    for(i = 1; i < 20; i++){
+        if(voitureCopie[i].mn3 < mnMin){
+            mnMin = voitureCopie[i].mn3;
+        }
+        else if(voitureCopie[i].mn3 == mnMin){
+            if(ssMin > voitureCopie[i].ss3){
+                ssMin = voitureCopie[i].ss3;
+            }
         }
     }
-    return trouverVoitTemps2(voitureCopie, max);
+    return trouverVoitMn3(voitureCopie, mnMin, ssMin);
 }
 
-int maxS3(voiture voitureCopie[20]){
-    int i;
-    int max = 0;
-    for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].temps3 > max){
-            max = voitureCopie[i].temps3;
-        }
-    }
-    return trouverVoitTemps3(voitureCopie, max);
-}
-
-int maxCourse(voiture *voitureCopie){
-    int i;
-    int max = 0;
-    for(i = 0; i <= 19; i++){
-        if(voitureCopie[i].tt > max){
-            max = voitureCopie[i].tt;
-        }
-    }
-    return trouverVoitTt(voitureCopie, max);
-}
-
-void affichage(char str1[]){
+void affichage(char str1[], int nbVoitures, int finale){
     system("clear");
     printf("%s", str1);
-    printf("\t|\tS1\t\t|\tS2\t\t|\tS3\t\t|\tTT\t\t|\tPIT\t|\tOUT\t\n\n");
+    printf("\t\tRang\t|\tNumeros\t\t|\tS1\t\t|\tS2\t\t|\tS3\t\t|\tTT\t\t|\tPIT\t|\tOUT\t\n\n");
     voiture voitureCopie[20];
     
-    /** Sémaphores **/
-    int nblecteur = 0;
+    //Sémaphores
+     int nblecteur = 0;
     
-    /* Semaphores */
+     //Semaphores
+     int nsems = 1;
+     int semflg = 0;
+     int semid;
+     
+     // opérations à réaliser atomiquement
+     struct sembuf *ops;
     
-    int nsems = 1;
-    int semflg = 0;
-    int semid;
+     semid = semget(keysem, nsems, semflg);
+     semctl(semid, 0, SETVAL, 1);
+     semctl(semid, 1, SETVAL, 1);
+     
+     // P(MUTEX
+     ops[1].sem_num= 1;
+     ops[1].sem_op = -1;
+     ops[1].sem_flg = SEM_UNDO;
+     semop(semid, ops, 0);
+     
+     nblecteur = nblecteur + 1;
+     
+     if(nblecteur == 1){
+         //P( ACCESS )
+         ops[1].sem_num= 0;
+         ops[1].sem_op = -1;
+         ops[1].sem_flg = SEM_UNDO;
+         semop(semid, ops, 0);
+     }
+     else{
+         // V(Mutex)
+         ops[1].sem_num = 1;
+         ops[1].sem_op = 1;
+         ops[1].sem_flg = SEM_UNDO;
+         semop(semid, ops, 0);
+     }
     
-    // opérations à réaliser atomiquement
-    struct sembuf *ops;
+    memcpy(&voitureCopie, voituresCourse, 20*sizeof(voiture));
     
-    semid = semget(keysem, nsems, semflg);
-    semctl(semid, 0, SETVAL, 1);
-    semctl(semid, 1, SETVAL, 1);
-    
-    /* P(MUTEX */
-    ops[1].sem_num= 1;
+    /* P(Mutex) */
+    ops[1].sem_num = 1;
     ops[1].sem_op = -1;
     ops[1].sem_flg = SEM_UNDO;
-    
     semop(semid, ops, 0);
-    
-    nblecteur = nblecteur + 1;
-    
-    if(nblecteur == 1){
-        /* P( ACCESS ) */
-        ops[1].sem_num= 0;
-        ops[1].sem_op = -1;
-        ops[1].sem_flg = SEM_UNDO;
-        
-        semop(semid, ops, 0);
-    }
-    else{
-        /* V(Mutex) */
-        ops[1].sem_num = 1;
-        ops[1].sem_op = -1;
-        ops[1].sem_flg = SEM_UNDO;
-        
-        semop(semid, ops, 0);
-    }
-    
-    memcpy(&voitureCopie, voituresCourse, 20*sizeof(voiture)); // Section critique
     
     nblecteur = nblecteur - 1;
     
-    if(nblecteur == 0){
-        /* V(ACCESS) */
-        ops[1].sem_num = 0;
-        ops[1].sem_op = +1;
-        ops[1].sem_flg = SEM_UNDO;
-        
-        semop(semid, ops, 0);
+     if(nblecteur == 0){
+         // V(ACCESS)
+         ops[1].sem_num = 0;
+         ops[1].sem_op = +1;
+         ops[1].sem_flg = SEM_UNDO;
+         semop(semid, ops, 0);
+     }
+    
+     // V(MUTEX )
+     ops[1].sem_num = 1;
+     ops[1].sem_op = +1;
+     ops[1].sem_flg = SEM_UNDO;
+     semop(semid, ops, 1);
+    
+    
+    if(finale == 0){
+        trierTab(voitureCopie);
+    }
+    else{
+        trieFinale(voitureCopie);
     }
     
-    /* V(MUTEX ) */
-    
-    ops[1].sem_num = 1;
-    ops[1].sem_op = +1;
-    ops[1].sem_flg = SEM_UNDO;
-    
-    semop(semid, ops, 1);
-    
-    trierTab(voitureCopie);
     int i;
-    for(i = 0; i <= 19; i++){
-        int div1 = voitureCopie[i].temps1 / 60;
-        int res1 = voitureCopie[i].temps1 % 60;
+    for(i = 0; i < nbVoitures; i++){
+        int div = voitureCopie[i].tt / 60;
+        int res = voitureCopie[i].tt % 60;
         
-        int div2 = voitureCopie[i].temps2 / 60;
-        int res2 = voitureCopie[i].temps2 % 60;
-        
-        int div3 = voitureCopie[i].temps3 / 60;
-        int res3 = voitureCopie[i].temps3 % 60;
-        
-        int div = voitureCopie[i].tt /3600;
-        int res = (voitureCopie[i].tt % 3600) / 60;
-        int mn = (voitureCopie[i].tt % 3600) % 60;
-        
-        printf("%d\t|\t00:%d:%d m\t|\t00:%d:%d m\t|\t00:%d:%d m\t|\t0%d:%d:%d m\t|\t(P)\t|\tIN\t\n", voituresCourse[i].num, div1, res1, div2, res2, div3, res3, div, res, mn);
+        if(voituresCourse[i].tt != 600){
+            printf("\t\t%d\t|\t%d\t\t|\t00:%d:%d mn\t|\t00:%d:%d mn\t|\t00:%d:%d mn\t|\t%d:%d:%d mn\t|\t%s\t|\t\%s\t\n",i+1, voitureCopie[i].num, voitureCopie[i].mn1, voitureCopie[i].ss1,
+                   voitureCopie[i].mn2, voitureCopie[i].ss2, voitureCopie[i].mn3, voitureCopie[i].ss3, div, res, voitureCopie[i].ss, voituresCourse[i].pit, voituresCourse[i].out);
+        }
         
     }
-    printf("\nMeilleur S1: %d\n", maxS1(voitureCopie));
-    printf("Meilleur S2: %d\n", maxS2(voitureCopie));
-    printf("Meilleur S3: %d\n", maxS3(voitureCopie));
-    printf("Meilleur de la course en elle-même: %d\n", maxCourse(voitureCopie));
+    for(i = 0; i < (20 - nbVoitures); i++){
+        printf("\n");
+    }
+    printf("\n\n\n\tMeilleur S1: \t%d\n", minS1(voitureCopie));
+    printf("\tMeilleur S2: \t%d\n", minS2(voitureCopie));
+    printf("\tMeilleur S3: \t%d\n", minS3(voitureCopie));
+    printf("\tMeilleur de la course en elle-même: \t%d\n\n\n", voitureCopie[0].num);
+    
     sleep(1);
 }
 
-void courseSession(char str1[], int trs, int km){
+void courseSession(char str1[], int trs,int nbVoitures, int finale){
     int i;
     for(i= 0; i<trs; i++){
-        courseTour(km);
-        affichage(str1);
+        courseTour(nbVoitures);
+        affichage(str1, nbVoitures, finale);
     }
+}
+
+void mettreAjourVoitCourse(int nb){
+    voiture voitureCopie[20];
+    memcpy(&voitureCopie, voituresCourse, 20*sizeof(voiture));
+    trierTab(voituresCourse);
+    initCourse();
+    voiture copie[nb];
+    int j, i;
+    for( i = 0; i < nb; i++){
+        copie[i] = voitureCopie[i];
+    }
+    
+    for( i = 0; i < nb; i++){
+        for(j = 0; j <= 20; j++){
+            if(copie[i].num == voituresCourse[i].num){
+                voituresCourse[i] = copie[i];
+            }
+        }
+    }
+    for(i = 0; i < 20; i++){
+        if(voituresCourse[i].pid == 0 && voituresCourse[i].tt == 500){
+            voituresCourse[i].echec = 1;
+        }
+    }
+    
 }
 
 int main(int argc, char *argv[]){
@@ -348,18 +473,48 @@ int main(int argc, char *argv[]){
     }
     
     initCourse();
-    courseSession("COURSE P1 : Premiere scéance d'essais !!!\n\n\n", 50, 100);
-    printf("%s\n", "\n\nPremière course terminee\n\n\n" );
+    sleep(1);
+    courseSession("\n\tCOURSE P1 : Premiere scéance d'essais !!!\n\n\n", 30, 20, 0);
+    printf("%s\n", "\tPremière course terminee\n\n\n" );
     sleep(1);
     initCourse();
-    courseSession("COURSE P2 : Deuxième scéance d'essais !!!\n\n\n", 30, 50);
-    printf("%s\n", "\n\nDeuxieme course terminee\n\n\n" );
+    sleep(1);
+    courseSession("\n\tCOURSE P2 : Deuxième scéance d'essais !!!\n\n\n", 30, 20, 0);
+    printf("%s\n", "\tDeuxieme course terminee\n\n\n" );
     sleep(1);
     initCourse();
-    courseSession("COURSE P3 : Troisième scéance d'essais !!!\n\n\n", 30, 50);
-    printf("%s\n", "\n\nTroisième course terminee\n\n\n" );
+    sleep(1);
+    courseSession("\n\tCOURSE P3 : Troisième scéance d'essais !!!\n\n\n", 10, 20, 0);
+    printf("%s\n", "\tTroisième course terminee\n\n\n" );
     sleep(1);
     initCourse();
+    courseSession("\n\tDébut de la séance de qualification\n\tCOURSE Q1 : Premiere scéance de qualification !!!\n\n\n", 18, 20, 0);
+    printf("%s\n", "\tPremière course terminee\n\n\n" );
+    sleep(1);
+    
+    mettreAjourVoitCourse(15);
+    initVoituresCourse();
+    courseSession("\n\n\n\tCOURSE Q2 : Deuxième scéance de qualification !!!\n\n\n", 15, 15, 0);
+    printf("%s\n", "\tDeuxieme course terminee\n\n\n" );
+    sleep(1);
+    
+    mettreAjourVoitCourse(10);
+    initVoituresCourse();
+    courseSession("\n\n\n\tCOURSE Q3 : Troisième scéance de qualification !!!\n\n\n", 12, 10, 0);
+    printf("%s\n", "\tTroisième course terminee\n\n\n" );
+    sleep(1);
+    
+    printf("%s\n", "\tFin de qualification! \n");
+    affichage("\n\n\tLe classement pour la finale est:\n\n\n", 10, 0);
+    sleep(2);
+    
+    /**finale**/
+    mettreAjourVoitCourse(10);
+    initVoituresCourse();
+    courseSession("\n\n\n\tLA FINALE\n\n\n", 20, 10, 1);
+    printf("%s\n", "\tFin De La Finale\n\n\n" );
+    sleep(1);
+    
     
     if(shmdt(voituresCourse) == -1){
         perror("détachement impossible: Erreur shmdt du père.\n");
